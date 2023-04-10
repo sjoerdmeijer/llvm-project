@@ -17,11 +17,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MCStreamerWrapper.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCInstrAnalysis.h"
+#include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
@@ -120,7 +122,7 @@ const Target *getTarget(const char *ProgName) {
 } // end of anonymous namespace
 
 static int ParseInput(const char *ProgName, const Target *TheTarget,
-                      SourceMgr &SrcMgr, MCContext &Ctx, MCStreamer &Str,
+                      SourceMgr &SrcMgr, MCContext &Ctx, MCStreamerWrapper &Str,
                       MCAsmInfo &MAI, MCSubtargetInfo &STI,
                       MCInstrInfo &MCII, MCTargetOptions const &MCOptions) {
 
@@ -273,7 +275,7 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<buffer_ostream> BOS;
   raw_pwrite_stream *OS = &Out->os();
-  std::unique_ptr<MCStreamer> Str;
+  MCStreamerWrapper Str(Ctx);
 
    // Set up the AsmStreamer.
   std::unique_ptr<MCCodeEmitter> CE;
@@ -281,12 +283,16 @@ int main(int argc, char **argv) {
   std::unique_ptr<MCAsmBackend> MAB(
       TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
   auto FOut = std::make_unique<formatted_raw_ostream>(*OS);
-  Str.reset(
-      TheTarget->createAsmStreamer(Ctx, std::move(FOut), /*asmverbose*/ true,
-                                   /*useDwarfDirectory*/ true, IP,
-                                   std::move(CE), std::move(MAB), true /*ShowInst*/));
 
-  ParseInput(ProgName, TheTarget, SrcMgr, Ctx, *Str, *MAI, *STI, *MCII, MCOptions);
+  formatted_raw_ostream FOSRef(*OS);
+  TheTarget->createAsmTargetStreamer(Str, FOSRef, IP,
+                                    /*IsVerboseAsm=*/true);
 
+  ParseInput(ProgName, TheTarget, SrcMgr, Ctx, Str, *MAI, *STI, *MCII, MCOptions);
+
+  WithColor::note() << "Parsed instructions:\n";
+  for (auto I : Str.Insts) {
+    IP->printInst(&I, 0, "\n", *STI, FOSRef);
+  }
   return 0;
 }
