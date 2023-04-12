@@ -14,6 +14,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_llvm_tool(llvm-superasm
   llvm-superasm.cpp
+  DepGraph.cpp
   )
 
 set(LLVM_SUPERASM_SOURCE_DIR ${CURRENT_SOURCE_DIR})

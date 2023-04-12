@@ -17,6 +17,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "DepGraph.h"
 #include "MCStreamerWrapper.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -88,8 +89,8 @@ static cl::opt<int>
                      cl::cat(ToolOptions), cl::init(-1));
 
 static cl::opt<bool>
-    PrintImmHex("print-imm-hex", cl::cat(ToolOptions), cl::init(false),
-                cl::desc("Prefer hex format when printing immediate values"));
+    PrintDepGraph("print-dep-graph", cl::cat(ViewOptions), cl::init(false),
+                  cl::desc("Print the dependency graph in Dot format"));
 
 static cl::opt<bool>
     ShowInstOperands("show-inst-operands",
@@ -288,11 +289,14 @@ int main(int argc, char **argv) {
   TheTarget->createAsmTargetStreamer(Str, FOSRef, IP,
                                     /*IsVerboseAsm=*/true);
 
+  DepGraph DG(FOSRef, STI, MCII, IP, MRI);
   ParseInput(ProgName, TheTarget, SrcMgr, Ctx, Str, *MAI, *STI, *MCII, MCOptions);
 
-  WithColor::note() << "Parsed instructions:\n";
-  for (auto I : Str.Insts) {
-    IP->printInst(&I, 0, "\n", *STI, FOSRef);
-  }
+  DG.createNodes(Str.Insts);
+  DG.createEdges();
+
+  if (PrintDepGraph)
+    DG.dumpDotty();
+
   return 0;
 }
