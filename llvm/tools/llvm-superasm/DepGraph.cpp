@@ -14,11 +14,17 @@
 
 #include "DepGraph.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/Support/WithColor.h"
 
-void DepGraph::createNodes(std::vector<MCInst> &Insts) {
+bool DepGraph::createNodes(std::vector<MCInst> &Insts) {
   unsigned ID = 0;
-  for (auto I : Insts)
-    Nodes.push_back(DGNode(I, this, ID++));
+  for (auto I : Insts) {
+    DGNode N(I, this, ID++);
+    if (!N.isSupportedIns(*MRI))
+      return false;
+    Nodes.push_back(N);
+  }
+  return true;
 }
 
 void DepGraph::createEdges() {
@@ -100,4 +106,18 @@ DGNode::DGNode(MCInst I, DepGraph *D, unsigned Num) {
   DG = D;
   MCDesc = DG->MCII->get(I.getOpcode());
   ID = Num;
+}
+
+bool DGNode::isSupportedIns(const MCRegisterInfo &MRI) {
+  if (MCDesc.mayAffectControlFlow(Ins, MRI)) {
+    WithColor::error() << "branch instructions are not yet supported:\n";
+    dumpMCInstNL();
+    return false;
+  }
+  if (MCDesc.isBarrier()) {
+    WithColor::error() << "function calls are not yet supported:\n";
+    dumpMCInstNL();
+    return false;
+  }
+  return true;
 }

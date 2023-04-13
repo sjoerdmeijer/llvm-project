@@ -34,6 +34,7 @@ public:
   unsigned getNumDefs() { return MCDesc.getNumDefs(); }
   unsigned getPosDef() { return getNumDefs() - 1; }
   std::string getName() { return "N" + std::to_string(ID); }
+  bool isSupportedIns(const MCRegisterInfo &MRI);
 
   bool isValidReg(int OpIdx) {
     return Ins.getOperand(OpIdx).isValid() && Ins.getOperand(OpIdx).isReg()
@@ -107,7 +108,7 @@ public:
       FOSRef(FOSRef), MCII(MCII), STI(STI), IP(IP), MRI(MRI) {}
 
   void createEdges();
-  void createNodes(std::vector<MCInst> &Insts);
+  bool createNodes(std::vector<MCInst> &Insts);
 
   void dumpDotty() {
     dbgs() << "\ndigraph deps {\n";

@@ -292,9 +292,12 @@ int main(int argc, char **argv) {
   DepGraph DG(FOSRef, STI, MCII, IP, MRI);
   ParseInput(ProgName, TheTarget, SrcMgr, Ctx, Str, *MAI, *STI, *MCII, MCOptions);
 
-  DG.createNodes(Str.Insts);
-  DG.createEdges();
+  if (!DG.createNodes(Str.Insts)) {
+    WithColor::error() << "cannot optimise this input.\n";
+    return 1;
+  }
 
+  DG.createEdges();
   if (PrintDepGraph)
     DG.dumpDotty();
 
