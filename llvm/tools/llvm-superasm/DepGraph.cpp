@@ -14,15 +14,25 @@
 
 #include "DepGraph.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSchedule.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/WithColor.h"
 
 bool DepGraph::createNodes(std::vector<MCInst> &Insts) {
   unsigned ID = 0;
+  const MCSchedModel &SM = STI->getSchedModel();
   for (auto I : Insts) {
     DGNode N(I, this, ID++);
     if (!N.isSupportedIns(*MRI))
       return false;
     Nodes.push_back(N);
+
+    unsigned SchedClassID = N.getSchedClass();
+    const MCSchedClassDesc &SCDesc = *SM.getSchedClassDesc(SchedClassID);
+    int Latency = MCSchedModel::computeInstrLatency(*STI, SCDesc);
+    LLVM_DEBUG(dbgs() << "Created node " << N.getID() << ", Latency = "
+               << Latency << "\n");
+    N.setLatency(Latency);
   }
   return true;
 }

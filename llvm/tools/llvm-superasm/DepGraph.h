@@ -25,6 +25,7 @@ class DGNode {
   DepGraph *DG;
   MCInstrDesc MCDesc;
   unsigned ID;
+  int Latency;
 
 public:
   MCInst Ins;
@@ -35,6 +36,10 @@ public:
   unsigned getPosDef() { return getNumDefs() - 1; }
   std::string getName() { return "N" + std::to_string(ID); }
   bool isSupportedIns(const MCRegisterInfo &MRI);
+  void setLatency(int L) { Latency = L; }
+  int getLatency() { return Latency; }
+  unsigned getID() { return ID; }
+  unsigned getSchedClass() { return MCDesc.getSchedClass(); }
 
   bool isValidReg(int OpIdx) {
     return Ins.getOperand(OpIdx).isValid() && Ins.getOperand(OpIdx).isReg()
