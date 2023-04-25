@@ -37,6 +37,46 @@ bool DepGraph::createNodes(std::vector<MCInst> &Insts) {
   return true;
 }
 
+void DepGraph::dumpSMTConstraints() {
+  dbgs() << "\n";
+  // Add all variables.
+  for (auto N: Nodes) {
+    dbgs() << "(declare-const " << N.getName() << " Int)\n";
+    dbgs() << "(assert (> " << N.getName() << " 0))\n";
+  }
+
+  // All variables should get distinct values.
+  for (unsigned i = 0; i < Nodes.size(); ++i) {
+    dbgs() << "(assert (not (or ";
+    for (unsigned j = 0; j < Nodes.size(); ++j) {
+      if (i == j)
+        continue;
+      dbgs() << "(= " << Nodes[i].getName() << " " << Nodes[j].getName() << ") ";
+    }
+    dbgs() << ")))\n";
+  }
+
+  // Add the scheduling constraints.
+  for (auto E : Edges) {
+    dbgs() << "(assert (< ";
+    if (E.DepType == EdgeType::TrueDep) {
+      dbgs() << "(+ " << E.Src->getName() << " " << E.Src->getLatency() << ") "
+        << E.Dst->getName() ;
+      dbgs() << "))\n";
+    } else {
+      dbgs() << E.Src->getName() << " " << E.Dst->getName() << "))\n";
+    }
+  }
+
+  // Add the constraint to minimise the schedule
+  dbgs() << "(minimize (+ ";
+  for (auto N: Nodes)
+    dbgs() << N.getName() << " ";
+  dbgs() << "))\n";
+
+  dbgs() << "(check-sat)\n";
+}
+
 void DepGraph::createEdges() {
   LLVM_DEBUG(dbgs() << "Analysing " << Nodes.size() << " nodes.\n");
   for (unsigned i = 0; i < Nodes.size(); i++) {

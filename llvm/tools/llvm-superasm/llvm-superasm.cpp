@@ -93,6 +93,12 @@ static cl::opt<bool>
                   cl::desc("Print the dependency graph in Dot format"));
 
 static cl::opt<bool>
+    PrintSMTConstraints("print-smt-constraints", cl::cat(ViewOptions),
+                        cl::init(false),
+                        cl::desc("Print the scheduling constraints"));
+
+
+static cl::opt<bool>
     ShowInstOperands("show-inst-operands",
                      cl::desc("Show instructions operands as parsed"),
                      cl::cat(MCCategory));
@@ -300,6 +306,8 @@ int main(int argc, char **argv) {
   DG.createEdges();
   if (PrintDepGraph)
     DG.dumpDotty();
+  if (PrintSMTConstraints)
+    DG.dumpSMTConstraints();
 
   return 0;
 }

@@ -67,14 +67,14 @@ public:
 enum class EdgeType { AntiDep, TrueDep, OutputDep };
 
 class DGEdge {
-  EdgeType DepType;
 public:
   DGNode *Src;
   DGNode *Dst;
+  EdgeType DepType;
   unsigned SrcOpIdx;
 
   DGEdge(DGNode *S, DGNode *D, EdgeType E, unsigned I)
-    : DepType(E), Src(S), Dst(D), SrcOpIdx(I) {}
+    : Src(S), Dst(D), DepType(E), SrcOpIdx(I) {}
 
   void dumpDotty() {
     dbgs() << Src->getName();
@@ -123,4 +123,6 @@ public:
       E.dumpDotty();
     dbgs() << "}\n";
   }
+
+  void dumpSMTConstraints();
 };
