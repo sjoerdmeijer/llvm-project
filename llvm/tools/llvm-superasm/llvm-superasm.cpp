@@ -17,6 +17,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ConstraintManager.h"
 #include "DepGraph.h"
 #include "MCStreamerWrapper.h"
 #include "llvm/MC/MCAsmBackend.h"
@@ -96,7 +97,10 @@ static cl::opt<bool>
     PrintSMTConstraints("print-smt-constraints", cl::cat(ViewOptions),
                         cl::init(false),
                         cl::desc("Print the scheduling constraints"));
-
+cl::opt<bool>
+    PrintSolverModel("print-solver-model", cl::cat(ViewOptions),
+                        cl::init(false),
+                        cl::desc("Print the output of the SMT solver"));
 
 static cl::opt<bool>
     ShowInstOperands("show-inst-operands",
@@ -308,6 +312,9 @@ int main(int argc, char **argv) {
     DG.dumpDotty();
   if (PrintSMTConstraints)
     DG.dumpSMTConstraints();
+
+  ConstraintManager CM(&DG);
+  CM.solve();
 
   return 0;
 }

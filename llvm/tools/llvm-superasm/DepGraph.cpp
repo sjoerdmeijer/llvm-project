@@ -38,7 +38,7 @@ bool DepGraph::createNodes(std::vector<MCInst> &Insts) {
 }
 
 void DepGraph::dumpSMTConstraints() {
-  dbgs() << "\n";
+  LLVM_DEBUG(dbgs() << "\nSMT constraints:\n\n");
   // Add all variables.
   for (auto N: Nodes) {
     dbgs() << "(declare-const " << N.getName() << " Int)\n";
@@ -75,6 +75,7 @@ void DepGraph::dumpSMTConstraints() {
   dbgs() << "))\n";
 
   dbgs() << "(check-sat)\n";
+  dbgs() << "\n";
 }
 
 void DepGraph::createEdges() {

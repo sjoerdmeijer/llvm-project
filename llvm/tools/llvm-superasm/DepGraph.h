@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_TOOLS_SUPER_ASM_H
+#define LLVM_TOOLS_SUPER_ASM_H
+
 #include <vector>
+#include "ConstraintManager.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -126,3 +130,5 @@ public:
 
   void dumpSMTConstraints();
 };
+
+#endif
