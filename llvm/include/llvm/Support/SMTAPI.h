@@ -37,6 +37,9 @@ public:
   /// Returns true if the sort is a boolean, calls isBooleanSortImpl().
   virtual bool isBooleanSort() const { return isBooleanSortImpl(); }
 
+  /// Returns true if the sort is an integer, calls isIntegerSortImpl().
+  virtual bool isIntegerSort() const { return isIntegerSortImpl(); }
+
   /// Returns the bitvector size, fails if the sort is not a bitvector
   /// Calls getBitvectorSortSizeImpl().
   virtual unsigned getBitvectorSortSize() const {
@@ -85,6 +88,9 @@ protected:
 
   /// Query the SMT solver and checks if a sort is boolean.
   virtual bool isBooleanSortImpl() const = 0;
+
+  /// Query the SMT solver and checks if a sort is integer.
+  virtual bool isIntegerSortImpl() const = 0;
 
   /// Query the SMT solver and returns the sort bit width.
   virtual unsigned getBitvectorSortSizeImpl() const = 0;
@@ -139,6 +145,7 @@ public:
   virtual ~SMTSolver() = default;
 
   LLVM_DUMP_METHOD void dump() const;
+  LLVM_DUMP_METHOD void dumpOpt() const;
 
   // Returns an appropriate floating-point sort for the given bitwidth.
   SMTSortRef getFloatSort(unsigned BitWidth) {
@@ -162,6 +169,9 @@ public:
   // Returns an appropriate bitvector sort for the given bitwidth.
   virtual SMTSortRef getBitvectorSort(const unsigned BitWidth) = 0;
 
+  // Returns an integer sort
+  virtual SMTSortRef getIntegerSort() = 0;
+
   // Returns a floating-point sort of width 16
   virtual SMTSortRef getFloat16Sort() = 0;
 
@@ -179,6 +189,9 @@ public:
 
   /// Given a constraint, adds it to the solver
   virtual void addConstraint(const SMTExprRef &Exp) const = 0;
+
+  /// Given a constraint, adds it to the optimizing solver
+  virtual void addOptConstraint(const SMTExprRef &Exp) const = 0;
 
   /// Creates a bitvector addition operation
   virtual SMTExprRef mkBVAdd(const SMTExprRef &LHS, const SMTExprRef &RHS) = 0;
@@ -248,6 +261,20 @@ public:
 
   /// Creates a bitvector signed greater-equal-than operation
   virtual SMTExprRef mkBVSge(const SMTExprRef &LHS, const SMTExprRef &RHS) = 0;
+
+  /// Creates an integer greater-than operation
+  virtual SMTExprRef mkIntGt(const SMTExprRef &LHS, const SMTExprRef &RHS) = 0;
+
+  /// Creates an integer less-than operation
+  virtual SMTExprRef mkIntLt(const SMTExprRef &LHS, const SMTExprRef &RHS) = 0;
+
+  /// Creates a binary integer add operation
+  virtual SMTExprRef mkIntBinAdd(const SMTExprRef &LHS, const SMTExprRef &RHS) = 0;
+
+
+  /// Creates a minimization operations, and check the model
+  virtual bool mkMinimizeAndCheck(const SMTExprRef &Exp) = 0;
+
 
   /// Creates a boolean not operation
   virtual SMTExprRef mkNot(const SMTExprRef &Exp) = 0;
@@ -411,12 +438,18 @@ public:
   /// Constructs an SMTExprRef from an APSInt and its bit width
   virtual SMTExprRef mkBitvector(const llvm::APSInt Int, unsigned BitWidth) = 0;
 
+  /// Constructs an integer SMTExprRef from an int
+  virtual SMTExprRef mkInteger(int V) = 0;
+
   /// Given an expression, extract the value of this operand in the model.
   virtual bool getInterpretation(const SMTExprRef &Exp, llvm::APSInt &Int) = 0;
 
   /// Given an expression extract the value of this operand in the model.
   virtual bool getInterpretation(const SMTExprRef &Exp,
                                  llvm::APFloat &Float) = 0;
+
+  /// Given an expression extract the value of this operand in the optimization model.
+  virtual bool getOptInterpretation(const SMTExprRef &Exp, llvm::APSInt &Int) = 0;
 
   /// Check if the constraints are satisfiable
   virtual std::optional<bool> check() const = 0;
@@ -434,6 +467,7 @@ public:
   virtual bool isFPSupported() = 0;
 
   virtual void print(raw_ostream &OS) const = 0;
+  virtual void printOpt(raw_ostream &OS) const = 0;
 };
 
 /// Shared pointer for SMTSolvers.

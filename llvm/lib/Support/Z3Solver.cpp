@@ -52,8 +52,15 @@ class Z3Context {
 public:
   Z3_context Context;
 
+  // The optimization context
+  Z3_optimize OptContext;
+
+
   Z3Context() {
     Context = Z3_mk_context_rc(Z3Config().Config);
+    OptContext = Z3_mk_optimize(Context);
+    Z3_optimize_inc_ref(Context, OptContext);
+
     // The error function is set here because the context is the first object
     // created by the backend
     Z3_set_error_handler(Context, Z3ErrorHandler);
@@ -116,6 +123,10 @@ public:
 
   bool isBooleanSortImpl() const override {
     return (Z3_get_sort_kind(Context.Context, Sort) == Z3_BOOL_SORT);
+  }
+
+  bool isIntegerSortImpl() const override {
+    return (Z3_get_sort_kind(Context.Context, Sort) == Z3_INT_SORT);
   }
 
   unsigned getBitvectorSortSizeImpl() const override {
@@ -289,6 +300,10 @@ public:
     Z3_solver_assert(Context.Context, Solver, toZ3Expr(*Exp).AST);
   }
 
+  void addOptConstraint(const SMTExprRef &Exp) const override {
+    Z3_optimize_assert(Context.Context, Context.OptContext, toZ3Expr(*Exp).AST);
+  }
+
   // Given an SMTSort, adds/retrives it from the cache and returns
   // an SMTSortRef to the SMTSort in the cache
   SMTSortRef newSortRef(const SMTSort &Sort) {
@@ -311,6 +326,12 @@ public:
     return newSortRef(
         Z3Sort(Context, Z3_mk_bv_sort(Context.Context, BitWidth)));
   }
+
+  SMTSortRef getIntegerSort() override {
+    return newSortRef(
+        Z3Sort(Context, Z3_mk_int_sort(Context.Context)));
+  }
+
 
   SMTSortRef getSort(const SMTExprRef &Exp) override {
     return newSortRef(
@@ -346,6 +367,21 @@ public:
   SMTExprRef mkNot(const SMTExprRef &Exp) override {
     return newExprRef(
         Z3Expr(Context, Z3_mk_not(Context.Context, toZ3Expr(*Exp).AST)));
+  }
+
+  bool mkMinimizeAndCheck(const SMTExprRef &Exp) override {
+    auto Min = Z3_optimize_minimize(Context.Context, Context.OptContext, toZ3Expr(*Exp).AST);
+    (void) Min;
+    auto Res = Z3_optimize_check(Context.Context, Context.OptContext, 0, nullptr);
+    return Res == Z3_L_TRUE;
+  }
+
+  SMTExprRef mkIntBinAdd(const SMTExprRef &LHS, const SMTExprRef &RHS) override {
+    auto E1 = toZ3Expr(*LHS).AST;
+    auto E2 = toZ3Expr(*RHS).AST;
+    Z3_ast const args[] = {E1, E2};
+    return newExprRef(
+        Z3Expr(Context, Z3_mk_add(Context.Context, 2, args)));
   }
 
   SMTExprRef mkBVAdd(const SMTExprRef &LHS, const SMTExprRef &RHS) override {
@@ -429,6 +465,17 @@ public:
   SMTExprRef mkBVUlt(const SMTExprRef &LHS, const SMTExprRef &RHS) override {
     return newExprRef(
         Z3Expr(Context, Z3_mk_bvult(Context.Context, toZ3Expr(*LHS).AST,
+                                    toZ3Expr(*RHS).AST)));
+  }
+
+  SMTExprRef mkIntGt(const SMTExprRef &LHS, const SMTExprRef &RHS) override {
+    return newExprRef(
+        Z3Expr(Context, Z3_mk_gt(Context.Context, toZ3Expr(*LHS).AST,
+                                    toZ3Expr(*RHS).AST)));
+  }
+  SMTExprRef mkIntLt(const SMTExprRef &LHS, const SMTExprRef &RHS) override {
+    return newExprRef(
+        Z3Expr(Context, Z3_mk_lt(Context.Context, toZ3Expr(*LHS).AST,
                                     toZ3Expr(*RHS).AST)));
   }
 
@@ -725,6 +772,12 @@ public:
                                         : Z3_mk_false(Context.Context)));
   }
 
+  SMTExprRef mkInteger(int V) override {
+    auto Sort = Z3_mk_int_sort(Context.Context);
+      return newExprRef(Z3Expr(
+          Context, Z3_mk_int(Context.Context, V, Sort)));
+  }
+
   SMTExprRef mkBitvector(const llvm::APSInt Int, unsigned BitWidth) override {
     const Z3_sort Z3Sort = toZ3Sort(*getBitvectorSort(BitWidth)).Sort;
 
@@ -839,6 +892,11 @@ public:
       return true;
     }
 
+    if (Sort->isIntegerSort()) {
+      Int = getBitvector(AST, Int.getBitWidth(), Int.isUnsigned());
+      return true;
+    }
+
     llvm_unreachable("Unsupported sort to integer!");
   }
 
@@ -870,6 +928,25 @@ public:
     return toAPFloat(Sort, Assign, Float, true);
   }
 
+  bool getOptInterpretation(const SMTExprRef &Exp, llvm::APSInt &Int) override {
+    auto OptModel = Z3_optimize_get_model(Context.Context, Context.OptContext);
+
+    Z3_func_decl Func = Z3_get_app_decl(
+        Context.Context, Z3_to_app(Context.Context, toZ3Expr(*Exp).AST));
+
+    if (Z3_model_has_interp(Context.Context, OptModel, Func) != Z3_L_TRUE)
+      return false;
+
+    SMTExprRef Assign = newExprRef(
+        Z3Expr(Context,
+               Z3_model_get_const_interp(Context.Context, OptModel, Func)));
+
+    SMTSortRef Sort = getSort(Assign);
+    toAPSInt(Sort, Assign, Int, true);
+    return true;
+  }
+
+
   std::optional<bool> check() const override {
     Z3_lbool res = Z3_solver_check(Context.Context, Solver);
     if (res == Z3_L_TRUE)
@@ -896,6 +973,11 @@ public:
   void print(raw_ostream &OS) const override {
     OS << Z3_solver_to_string(Context.Context, Solver);
   }
+
+  void printOpt(raw_ostream &OS) const override {
+    auto OptModel = Z3_optimize_get_model(Context.Context, Context.OptContext);
+    OS << Z3_model_to_string(Context.Context, OptModel);
+  }
 }; // end class Z3Solver
 
 } // end anonymous namespace
@@ -916,3 +998,4 @@ llvm::SMTSolverRef llvm::CreateZ3Solver() {
 LLVM_DUMP_METHOD void SMTSort::dump() const { print(llvm::errs()); }
 LLVM_DUMP_METHOD void SMTExpr::dump() const { print(llvm::errs()); }
 LLVM_DUMP_METHOD void SMTSolver::dump() const { print(llvm::errs()); }
+LLVM_DUMP_METHOD void SMTSolver::dumpOpt() const { printOpt(llvm::errs()); }
