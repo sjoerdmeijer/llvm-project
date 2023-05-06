@@ -26,12 +26,15 @@ using namespace llvm;
 class DepGraph;
 
 class DGNode {
-  DepGraph *DG;
   MCInstrDesc MCDesc;
   unsigned ID;
   int Latency;
 
+  SMTExprRef Z3SchedVar;
+  int64_t Z3SchedVarInterpretation;
+
 public:
+  DepGraph *DG;
   MCInst Ins;
 
   DGNode(MCInst I, DepGraph *DG, unsigned ID);
@@ -44,6 +47,9 @@ public:
   int getLatency() { return Latency; }
   unsigned getID() { return ID; }
   unsigned getSchedClass() { return MCDesc.getSchedClass(); }
+  void setZ3SchedVar(SMTExprRef V) { Z3SchedVar = V ; }
+  void setZ3SchedVarInterp(unsigned V) { Z3SchedVarInterpretation = V ; }
+  unsigned getZ3SchedVarInterp() { return Z3SchedVarInterpretation; }
 
   bool isValidReg(int OpIdx) {
     return Ins.getOperand(OpIdx).isValid() && Ins.getOperand(OpIdx).isReg()
@@ -102,7 +108,7 @@ class DepGraph {
   formatted_raw_ostream &FOSRef;
 
 public:
-  std::vector<DGNode> Nodes;
+  std::vector<DGNode*> Nodes;
   std::vector<DGEdge> Edges;
 
   std::unique_ptr<MCInstrInfo> &MCII;
@@ -121,14 +127,22 @@ public:
 
   void dumpDotty() {
     dbgs() << "\ndigraph deps {\n";
-    for (auto N : Nodes)
-      N.dumpDotty();
+    for (auto *N : Nodes)
+      N->dumpDotty();
     for (auto E : Edges)
       E.dumpDotty();
     dbgs() << "}\n";
   }
 
   void dumpSMTConstraints();
+  void scheduleNodes();
+  void printNodes();
+
+  void printNodeAddrs() {
+    for (auto *N : Nodes) {
+      dbgs() << "Node: " << N << "\n";
+    }
+  }
 };
 
 #endif

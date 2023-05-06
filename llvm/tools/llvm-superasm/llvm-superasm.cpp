@@ -314,7 +314,13 @@ int main(int argc, char **argv) {
     DG.dumpSMTConstraints();
 
   ConstraintManager CM(&DG);
-  CM.solve();
+  if (!CM.solve())
+    return 1;
 
+  if (PrintSolverModel)
+    CM.dumpModel();
+
+  DG.scheduleNodes();
+  DG.printNodes();
   return 0;
 }

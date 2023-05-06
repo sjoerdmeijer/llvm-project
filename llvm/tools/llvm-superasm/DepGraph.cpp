@@ -13,6 +13,7 @@
 #define DEBUG_TYPE "llvm-superasm"
 
 #include "DepGraph.h"
+#include <algorithm>
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSchedule.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -22,17 +23,17 @@ bool DepGraph::createNodes(std::vector<MCInst> &Insts) {
   unsigned ID = 0;
   const MCSchedModel &SM = STI->getSchedModel();
   for (auto I : Insts) {
-    DGNode N(I, this, ID++);
-    if (!N.isSupportedIns(*MRI))
+    DGNode *N = new DGNode(I, this, ID++);
+    if (!N->isSupportedIns(*MRI))
       return false;
     Nodes.push_back(N);
 
-    unsigned SchedClassID = N.getSchedClass();
+    unsigned SchedClassID = N->getSchedClass();
     const MCSchedClassDesc &SCDesc = *SM.getSchedClassDesc(SchedClassID);
     int Latency = MCSchedModel::computeInstrLatency(*STI, SCDesc);
-    LLVM_DEBUG(dbgs() << "Created node " << N.getID() << ", Latency = "
+    LLVM_DEBUG(dbgs() << "Created node " << N->getID() << ", Latency = "
                << Latency << "\n");
-    N.setLatency(Latency);
+    N->setLatency(Latency);
   }
   return true;
 }
@@ -40,9 +41,9 @@ bool DepGraph::createNodes(std::vector<MCInst> &Insts) {
 void DepGraph::dumpSMTConstraints() {
   LLVM_DEBUG(dbgs() << "\nSMT constraints:\n\n");
   // Add all variables.
-  for (auto N: Nodes) {
-    dbgs() << "(declare-const " << N.getName() << " Int)\n";
-    dbgs() << "(assert (> " << N.getName() << " 0))\n";
+  for (auto *N: Nodes) {
+    dbgs() << "(declare-const " << N->getName() << " Int)\n";
+    dbgs() << "(assert (> " << N->getName() << " 0))\n";
   }
 
   // All variables should get distinct values.
@@ -51,7 +52,7 @@ void DepGraph::dumpSMTConstraints() {
     for (unsigned j = 0; j < Nodes.size(); ++j) {
       if (i == j)
         continue;
-      dbgs() << "(= " << Nodes[i].getName() << " " << Nodes[j].getName() << ") ";
+      dbgs() << "(= " << Nodes[i]->getName() << " " << Nodes[j]->getName() << ") ";
     }
     dbgs() << ")))\n";
   }
@@ -70,8 +71,8 @@ void DepGraph::dumpSMTConstraints() {
 
   // Add the constraint to minimise the schedule
   dbgs() << "(minimize (+ ";
-  for (auto N: Nodes)
-    dbgs() << N.getName() << " ";
+  for (auto *N: Nodes)
+    dbgs() << N->getName() << " ";
   dbgs() << "))\n";
 
   dbgs() << "(check-sat)\n";
@@ -81,42 +82,42 @@ void DepGraph::dumpSMTConstraints() {
 void DepGraph::createEdges() {
   LLVM_DEBUG(dbgs() << "Analysing " << Nodes.size() << " nodes.\n");
   for (unsigned i = 0; i < Nodes.size(); i++) {
-    LLVM_DEBUG(dbgs() << "\n== Analysing instruction: "; Nodes[i].dumpMCInstNL());
-    auto I = Nodes[i].Ins;
+    LLVM_DEBUG(dbgs() << "\n== Analysing instruction: "; Nodes[i]->dumpMCInstNL());
+    auto I = Nodes[i]->Ins;
     bool FoundOutputDep = false;
     for (unsigned j=i+1; j < Nodes.size() ; j++) {
-      LLVM_DEBUG(dbgs() << "Looking at: "; Nodes[j].dumpMCInstNL());
-      auto J = Nodes[j].Ins;
+      LLVM_DEBUG(dbgs() << "Looking at: "; Nodes[j]->dumpMCInstNL());
+      auto J = Nodes[j]->Ins;
       for (unsigned IOpIdx = 0; IOpIdx < I.getNumOperands(); IOpIdx++) {
-        if (!Nodes[i].isValidReg(IOpIdx))
+        if (!Nodes[i]->isValidReg(IOpIdx))
           continue;
         for (unsigned JOpIdx = 0; JOpIdx < J.getNumOperands(); JOpIdx++) {
-          if (!Nodes[j].isValidReg(JOpIdx))
+          if (!Nodes[j]->isValidReg(JOpIdx))
             continue;
           LLVM_DEBUG(dbgs() << "Comparing: ";
-                     Nodes[i].dumpOperandInfo(IOpIdx);
-                     dbgs() << " == "; Nodes[j].dumpOperandInfo(JOpIdx);
+                     Nodes[i]->dumpOperandInfo(IOpIdx);
+                     dbgs() << " == "; Nodes[j]->dumpOperandInfo(JOpIdx);
                      dbgs() << "\n");
           if (I.getOperand(IOpIdx).getReg() != J.getOperand(JOpIdx).getReg())
             continue;
-          int IWrite = Nodes[i].isWriteReg(IOpIdx);
-          int JWrite = Nodes[j].isWriteReg(JOpIdx);
+          int IWrite = Nodes[i]->isWriteReg(IOpIdx);
+          int JWrite = Nodes[j]->isWriteReg(JOpIdx);
 
           if (IWrite && JWrite) {
             LLVM_DEBUG(dbgs() << "Found an output dependency in: ";
-                       Nodes[j].dumpMCInstNL());
-            Edges.push_back(DGEdge(&Nodes[i], &Nodes[j], EdgeType::OutputDep,
+                       Nodes[j]->dumpMCInstNL());
+            Edges.push_back(DGEdge(Nodes[i], Nodes[j], EdgeType::OutputDep,
                                    IOpIdx));
             FoundOutputDep = true;
           } else if (IWrite && !JWrite) {
             LLVM_DEBUG(dbgs() << "Found a true dependency in: ";
-                       Nodes[j].dumpMCInstNL());
-            Edges.push_back(DGEdge(&Nodes[i], &Nodes[j], EdgeType::TrueDep,
+                       Nodes[j]->dumpMCInstNL());
+            Edges.push_back(DGEdge(Nodes[i], Nodes[j], EdgeType::TrueDep,
                                    IOpIdx));
           } else if (!IWrite && JWrite) {
             LLVM_DEBUG(dbgs() << "Found an anti dependency in: ";
-                       Nodes[j].dumpMCInstNL());
-            Edges.push_back(DGEdge(&Nodes[i], &Nodes[j], EdgeType::AntiDep,
+                       Nodes[j]->dumpMCInstNL());
+            Edges.push_back(DGEdge(Nodes[i], Nodes[j], EdgeType::AntiDep,
                                    IOpIdx));
             FoundOutputDep = true;
           }
@@ -125,6 +126,23 @@ void DepGraph::createEdges() {
       if (FoundOutputDep)
         break;
     }
+  }
+}
+
+static bool compareSchedVarInterp(DGNode *LHS, DGNode *RHS) {
+  return LHS->getZ3SchedVarInterp() < RHS->getZ3SchedVarInterp();
+}
+
+void DepGraph::scheduleNodes() {
+  std::sort(Nodes.begin(), Nodes.end(), compareSchedVarInterp);
+}
+
+void DepGraph::printNodes() {
+  dbgs() << "\n";
+  for (auto *N : Nodes) {
+    // FIXME
+    IP->printInst(&N->Ins, 0, "", *N->DG->STI, dbgs());
+    dbgs() << "\n";
   }
 }
 

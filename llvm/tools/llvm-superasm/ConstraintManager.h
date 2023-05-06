@@ -13,22 +13,28 @@
 #ifndef LLVM_TOOLS_SUPERASM_CONSTRAINT_MANAGER
 #define  LLVM_TOOLS_SUPERASM_CONSTRAINT_MANAGER
 
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/SMTAPI.h"
+#include <map>
 
 using namespace llvm;
 
 class DepGraph;
+class DGNode;
 
 class ConstraintManager {
   DepGraph *DG;
   std::vector<SMTExprRef> Symbols;
 
   mutable llvm::SMTSolverRef Solver = llvm::CreateZ3Solver();
+  std::map<SMTExprRef, DGNode*> Z3Var2Node;
 public:
 
   ConstraintManager(DepGraph *DG) : DG(DG) { }
   bool solve();
   bool createIntConstraints();
+  void setNodeSchedInterpretations();
+  void dumpModel() { dbgs() << "\nSolver model:\n\n"; Solver->dumpOpt(); }
 };
 
 #endif

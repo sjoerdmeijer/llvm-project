@@ -23,9 +23,12 @@ extern cl::opt<bool>  PrintSolverModel;
 
 bool ConstraintManager::createIntConstraints() {
   LLVM_DEBUG(dbgs() << "Creating Z3 constraints:\n\n");
-  for (auto N : DG->Nodes) {
-    auto Sym = Solver->mkSymbol(N.getName().c_str(),
+  for (auto *N : DG->Nodes) {
+    auto Sym = Solver->mkSymbol(N->getName().c_str(),
                                 Solver->getIntegerSort());
+    N->setZ3SchedVar(Sym);
+    Z3Var2Node.insert({Sym, N});
+
     Symbols.push_back(Sym);
     auto Zero = Solver->mkInteger(0);
     auto GT = Solver->mkIntGt(Sym, Zero);
@@ -71,24 +74,20 @@ bool ConstraintManager::createIntConstraints() {
   return Solver->mkMinimizeAndCheck(Add);
 }
 
+void ConstraintManager::setNodeSchedInterpretations() {
+  for (auto S : Symbols) {
+    APSInt I(32);
+    bool Tmp = Solver->getOptInterpretation(S, I);
+    (void) Tmp;
+    auto Find = Z3Var2Node.find(S);
+    Find->second->setZ3SchedVarInterp(I.getExtValue());
+  }
+}
+
 bool ConstraintManager::solve() {
   if (!createIntConstraints())
     return false;
 
-  if (PrintSolverModel) {
-    dbgs() << "\nSolver Model:\n\n";
-    Solver->dumpOpt();
-    dbgs() << "\n";
-  }
-
-  LLVM_DEBUG(
-    for (auto S : Symbols) {
-      dbgs() << "Symbol: "; S->dump();
-      APSInt I(32);;
-      Solver->getOptInterpretation(S, I);
-      dbgs() << ", interpretation: " << I << "\n";
-    }
-  );
-
+  setNodeSchedInterpretations();
   return true;
 }

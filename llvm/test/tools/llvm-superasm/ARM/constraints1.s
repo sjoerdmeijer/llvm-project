@@ -15,19 +15,19 @@
 # CONSTRAINTS-NEXT:  (assert (not (or (= N1 N0) (= N1 N2) (= N1 N3) )))
 # CONSTRAINTS-NEXT:  (assert (not (or (= N2 N0) (= N2 N1) (= N2 N3) )))
 # CONSTRAINTS-NEXT:  (assert (not (or (= N3 N0) (= N3 N1) (= N3 N2) )))
-# CONSTRAINTS-NEXT:  (assert (< (+ N0 1) N1))
-# CONSTRAINTS-NEXT:  (assert (< (+ N0 1) N1))
+# CONSTRAINTS-NEXT:  (assert (< (+ N0 2) N1))
+# CONSTRAINTS-NEXT:  (assert (< (+ N0 2) N1))
 # CONSTRAINTS-NEXT:  (minimize (+ N0 N1 N2 N3 ))
 # CONSTRAINTS-NEXT:  (check-sat)
 
 # Z3:       sat
 # Z3-NEXT:  (
 # Z3-NEXT:    (define-fun N1 () Int
-# Z3-NEXT:      3)
+# Z3-NEXT:      4)
 # Z3-NEXT:    (define-fun N0 () Int
 # Z3-NEXT:      1)
 # Z3-NEXT:    (define-fun N2 () Int
-# Z3-NEXT:      4)
+# Z3-NEXT:      3)
 # Z3-NEXT:    (define-fun N3 () Int
 # Z3-NEXT:      2)
 # Z3-NEXT:  )
